@@ -1,0 +1,175 @@
+{
+  "score": {
+    "total": 16,
+    "passed": 16,
+    "accuracy": 1,
+    "at": "2026-08-08T22:36:10.300Z"
+  },
+  "rows": [
+    {
+      "q": "What was our total revenue?",
+      "mode": "chat",
+      "pass": true,
+      "checks": {
+        "kind": true,
+        "fields": true
+      },
+      "answer": "**Total Revenue** is **$185,601**."
+    },
+    {
+      "q": "Total sales for blue jeans",
+      "mode": "chat",
+      "pass": true,
+      "checks": {
+        "kind": true,
+        "fields": true,
+        "filters": true,
+        "answer": true
+      },
+      "answer": "**Total Revenue** for Jeans is **$29,510**. *(No LookML value matched \"blue\" — closest: `products.br"
+    },
+    {
+      "q": "Revenue in georgia",
+      "mode": "chat",
+      "pass": true,
+      "checks": {
+        "kind": true,
+        "clarifyTerm": true,
+        "clarifyFields": true
+      },
+      "answer": "\"georgia\" matches more than one thing in this Explore — which did you mean?"
+    },
+    {
+      "q": "Revenue in georgia",
+      "mode": "chat",
+      "pass": true,
+      "checks": {
+        "kind": true,
+        "filters": true
+      },
+      "answer": "**Total Revenue** for Georgia is **$6,991.05**."
+    },
+    {
+      "q": "How is the business doing?",
+      "mode": "chat",
+      "pass": true,
+      "checks": {
+        "kind": true
+      },
+      "answer": "**Business briefing** — lifetime revenue is **$185,601** across **1,686 orders** (AOV **$110.08**). "
+    },
+    {
+      "q": "Top 10 brands by revenue",
+      "mode": "chat",
+      "pass": true,
+      "checks": {
+        "kind": true,
+        "fields": true,
+        "limit": true
+      },
+      "answer": "Top 10 brands by **total revenue** — **Stormline** leads at **$16,591**."
+    },
+    {
+      "q": "gmv by month",
+      "mode": "chat",
+      "pass": true,
+      "checks": {
+        "kind": true,
+        "fields": true
+      },
+      "answer": "Monthly **total revenue** — **down 13%** over the last 6 months."
+    },
+    {
+      "q": "Only 2025",
+      "mode": "chat",
+      "pass": true,
+      "checks": {
+        "kind": true,
+        "filters": true
+      },
+      "answer": "Applied `order_items.created_year = 2025` to **5 queries**. Charts re-rendered reactively — no serve"
+    },
+    {
+      "q": "Break that down by department",
+      "mode": "chat",
+      "pass": true,
+      "checks": {
+        "kind": true
+      },
+      "answer": "Split by **Department** — updated `q_total_revenue_by_month` and recompiled the chart as a stacked a"
+    },
+    {
+      "q": "Show that as a table",
+      "mode": "chat",
+      "pass": true,
+      "checks": {
+        "kind": true
+      },
+      "answer": "Here's the underlying result of `q_total_revenue_by_month` as a table — same reactive node, so it tr"
+    },
+    {
+      "q": "What are our top sellers?",
+      "mode": "chat",
+      "pass": true,
+      "checks": {
+        "kind": true,
+        "fields": true,
+        "limit": true,
+        "answer": true
+      },
+      "answer": "Matched the verified query **\"what are our top sellers\"** from the *Retail revenue agent* agent (mer"
+    },
+    {
+      "q": "Average order value by state",
+      "mode": "chat",
+      "pass": true,
+      "checks": {
+        "kind": true,
+        "fields": true,
+        "limit": true
+      },
+      "answer": "**Average Order Value** by **state** (top 10 of 20) — **Arizona** leads at **$137.4**."
+    },
+    {
+      "q": "Sales count by brand",
+      "mode": "chat",
+      "pass": true,
+      "checks": {
+        "kind": true,
+        "answer": true
+      },
+      "answer": "**Total Revenue** by **brand** (top 10 of 27) — **Stormline** leads at **$16,591**. *(Interpreted \"s"
+    },
+    {
+      "q": "Profit for outerwear in california",
+      "mode": "chat",
+      "pass": true,
+      "checks": {
+        "kind": true,
+        "fields": true,
+        "filters": true
+      },
+      "answer": "**Total Profit** for California, Outerwear is **$2,622.26**."
+    },
+    {
+      "q": "Deep dive on revenue",
+      "mode": "research",
+      "pass": true,
+      "checks": {
+        "kind": true,
+        "minCells": true
+      },
+      "answer": "**Research: total revenue** — 12 cells from one planner call: KPIs, trend, and breakdowns by departm"
+    },
+    {
+      "q": "Revenue from search by month",
+      "mode": "chat",
+      "pass": true,
+      "checks": {
+        "kind": true,
+        "filters": true
+      },
+      "answer": "Monthly **total revenue** for Search — **down 16%** over the last 6 months."
+    }
+  ]
+}

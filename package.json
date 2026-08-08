@@ -1,0 +1,12 @@
+{
+  "name": "lookbook",
+  "version": "0.1.0",
+  "description": "ObservableHQ Reactive Canvas for Looker \u2014 zero-build chat-with-your-data reference implementation",
+  "type": "module",
+  "scripts": {
+    "start": "python3 -m http.server 8321",
+    "test": "node --test tests/",
+    "eval": "node evals/run.mjs"
+  },
+  "license": "Apache-2.0"
+}

@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Lookbook — ObservableHQ Reactive Canvas for Looker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;600;700&family=Roboto:wght@400;500&family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div id="app">
+  <header id="topbar">
+    <div class="brand">
+      <span class="brand-mark">✦</span>
+      <span class="brand-name">Lookbook</span>
+      <span class="brand-sub">Ask your data · Reactive Canvas</span>
+    </div>
+    <div class="topbar-actions">
+      <div class="seg" role="tablist" aria-label="View">
+        <button id="view-chat" class="seg-btn active" role="tab">Chat</button>
+        <button id="view-canvas" class="seg-btn" role="tab">Canvas</button>
+      </div>
+      <button id="btn-undo" class="icon-btn" title="Undo (⌘Z)">↩</button>
+      <button id="btn-redo" class="icon-btn" title="Redo (⇧⌘Z)">↪</button>
+      <button id="btn-save" class="icon-btn wide" title="Export .lookernb.json">💾 Save</button>
+      <span class="engine-badge" title="Every turn is exactly one planner/LLM call that emits cell patches">1 call / turn</span>
+    </div>
+  </header>
+
+  <!-- Chat view: the conversational lens over the notebook -->
+  <main id="chat-view" class="view active">
+    <div id="chat-scroll">
+      <div id="chat-empty">
+        <div class="empty-logo">✦</div>
+        <h1>Ask about your data</h1>
+        <p>Answers are live, reactive notebook cells — not static chart payloads.</p>
+        <div id="suggestions"></div>
+      </div>
+      <div id="turns"></div>
+    </div>
+    <div id="composer">
+      <div id="pills-bar" title="LookML Explore fields — click to insert into your question"></div>
+      <form id="ask-form" autocomplete="off">
+        <button id="mode-toggle" type="button" title="Chat mode: minimal cells, direct answers">🔬 Research</button>
+        <input id="ask-input" type="text" placeholder="Ask about orders, revenue, brands, departments…" />
+        <button id="ask-send" type="submit" title="Send">➤</button>
+      </form>
+    </div>
+  </main>
+
+  <!-- Canvas view: the same document, as a notebook -->
+  <main id="canvas-view" class="view">
+    <div id="canvas-scroll">
+      <div class="canvas-head">
+        <input id="nb-title" value="Untitled analysis" spellcheck="false" />
+        <div class="canvas-head-meta" id="canvas-meta"></div>
+      </div>
+      <div id="cells"></div>
+      <div id="canvas-empty" class="hint">No cells yet — ask a question in Chat, and watch the document build itself.</div>
+    </div>
+    <aside id="history-panel">
+      <div class="history-title">Revision history</div>
+      <div id="history-list"></div>
+    </aside>
+  </main>
+</div>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>

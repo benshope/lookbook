@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Lookbook benchmark — intent accuracy · latency · token efficiency</title>
+<link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet" />
+<style>
+  body { font-family: 'Google Sans', system-ui, sans-serif; margin: 40px auto; max-width: 1000px; color: #202124; padding: 0 20px; }
+  h1 { font-weight: 600; } .sub { color: #5f6368; margin-bottom: 24px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th { text-align: left; border-bottom: 2px solid #dadce0; padding: 8px 10px; color: #5f6368; font-size: 12px; }
+  td { border-bottom: 1px solid #e8eaed; padding: 8px 10px; vertical-align: top; }
+  .mono { font-family: 'Roboto Mono', monospace; font-size: 11.5px; }
+  .pass { color: #137333; font-weight: 700; } .fail { color: #d93025; font-weight: 700; }
+  .totals { margin-top: 20px; font-size: 15px; }
+  .totals b { color: #1a73e8; }
+</style>
+</head>
+<body>
+<h1>Lookbook benchmark</h1>
+<div class="sub">Scripted 14-case suite: intent accuracy, grounding & clarification, join resolution, verified queries, disambiguation,
+  research mode, planner latency, and multi-turn token cost (statistical profiles vs raw rows).
+  Deterministic dataset — results are reproducible.</div>
+<table id="results">
+  <thead><tr><th>#</th><th>Prompt</th><th>Expectation</th><th>Result</th><th>Planner</th><th>Turn context cost</th></tr></thead>
+  <tbody></tbody>
+</table>
+<div class="totals" id="totals"></div>
+
+<script type="module">
+import { plan } from "./src/compiler.js";
+import { createNotebook, applyPatches, getCell } from "./src/notebook.js";
+import { MockLookerClient } from "./src/looker.js";
+import { profileRows, profileToPrompt, estimateTokens } from "./src/profiler.js";
+
+const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+const looker = new MockLookerClient({ latency: 0 });
+const nb = createNotebook();
+let lastQueryId = null, lastChartId = null;
+
+// Each case: prompt + structural assertions on the emitted patches.
+const CASES = [
+  { prompt: "What was our total revenue?",
+    expect: "scalar: KPI only, never a chart",
+    check: r => r.patches.length === 2 && r.patches.every(p => p.op === "add")
+      && !r.patches.some(p => p.cell.name.startsWith("chart_"))
+      && r.patches.some(p => p.cell.name.startsWith("kpi_")) },
+  { prompt: "How is the business doing?",
+    expect: "executive briefing: KPIs + trend + department bars (6 cells)",
+    check: r => r.patches.filter(p => p.op === "add").length === 6
+      && r.patches.some(p => p.cell.name === "exec_kpis") },
+  { prompt: "Top 10 brands by revenue",
+    expect: "ranking: barX, marginLeft:180, tip:true, LIMIT 10",
+    check: r => {
+      const q = r.patches.find(p => p.cell?.kind === "query");
+      const c = r.patches.find(p => p.cell?.kind === "js");
+      return q?.cell.query.limit === 10 && /barX/.test(c?.cell.source) && /marginLeft: 180/.test(c?.cell.source) && /tip: true/.test(c?.cell.source);
+    } },
+  { prompt: "Revenue by month",
+    expect: "trend: areaY + lineY over created_month",
+    check: r => {
+      const c = r.patches.find(p => p.cell?.kind === "js");
+      return /areaY/.test(c?.cell.source) && /created_month/.test(c?.cell.source);
+    } },
+  { prompt: "Only 2025",
+    expect: "filter mutation: updates only, zero new cells",
+    check: r => r.patches.length > 0 && r.patches.every(p => p.op === "update")
+      && r.patches.every(p => p.cell.query?.filters["order_items.created_year"] === "2025") },
+  { prompt: "Break that down by department",
+    expect: "breakdown mutation: 2 cell updates, zero new cells",
+    check: r => r.patches.length === 2 && r.patches.every(p => p.op === "update") },
+  { prompt: "Show that as a table",
+    expect: "table cell reusing the existing reactive query node",
+    check: r => r.patches.length === 1 && /return table\(/.test(r.patches[0].cell.source) },
+  { prompt: "Average order value by state",
+    expect: "wide dimension: top-10 ranking; users joins through orders",
+    check: async r => {
+      const q = r.patches.find(p => p.cell?.kind === "query");
+      if (!(q?.cell.query.limit === 10 && q.cell.query.fields.includes("users.state"))) return false;
+      const { joins } = await looker.runInlineQuery(q.cell.query);
+      return JSON.stringify(joins) === '["orders","users"]'; // transitive join plan
+    } },
+  { prompt: "What are our top sellers?",
+    expect: "verified query from agent context beats heuristics",
+    check: r => {
+      const q = r.patches.find(p => p.cell?.kind === "query");
+      return /verified/i.test(r.answer) && q?.cell.query.fields.includes("products.brand") && q.cell.query.limit === 10;
+    } },
+  { prompt: "Sales count by brand",
+    expect: "ambiguous measure → choice + alternates surfaced in answer",
+    check: r => /Interpreted/.test(r.answer) && /alternates/.test(r.answer) },
+  { prompt: "Total sales for blue jeans",
+    expect: "grounding: 'jeans' commits dept filter; 'blue' surfaced, never guessed",
+    check: r => {
+      const q = r.patches.find(p => p.cell?.kind === "query");
+      return q?.cell.query.filters["products.department"] === "Jeans" && /blue/i.test(r.answer) && /Bluegrain/.test(r.answer);
+    } },
+  { prompt: "Revenue in georgia",
+    expect: "ambiguous value (state vs brand) → clarification chips, no guess",
+    check: r => r.clarify?.term === "georgia" && r.patches.length === 0
+      && r.clarify.options.some(o => o.field === "users.state") && r.clarify.options.some(o => o.field === "products.brand") },
+  { prompt: "Revenue in georgia", choices: { georgia: { field: "users.state", value: "Georgia" } },
+    expect: "chip resolution re-plans with binding — zero extra LLM calls",
+    check: r => {
+      const q = r.patches.find(p => p.cell?.kind === "query");
+      return q?.cell.query.filters["users.state"] === "Georgia";
+    } },
+  { prompt: "Deep dive on revenue", mode: "research",
+    expect: "research mode: ≥10 cells incl. md findings, one planner call",
+    check: r => {
+      const adds = r.patches.filter(p => p.op === "add");
+      return adds.length >= 10 && adds.filter(p => p.cell.kind === "md").length >= 2
+        && adds.some(p => p.cell.name.startsWith("md_findings"));
+    } },
+];
+
+const tbody = document.querySelector("#results tbody");
+let passCount = 0, totalPlannerMs = 0, totalContextTokens = 0, rawTokens = 0;
+
+for (let i = 0; i < CASES.length; i++) {
+  const c = CASES[i];
+  const t0 = performance.now();
+  const result = await plan({
+    question: c.prompt, nb, looker, mode: c.mode || "chat", choices: c.choices || {},
+    lastQuery: lastQueryId ? getCell(nb, lastQueryId) : null,
+    lastChart: lastChartId ? getCell(nb, lastChartId) : null,
+  });
+  const ms = Math.round(performance.now() - t0);
+  totalPlannerMs += ms;
+
+  // Structural pass/fail + verify every generated js cell compiles.
+  let pass = false, err = "";
+  try {
+    pass = await c.check(result);
+    for (const p of result.patches)
+      if (p.cell?.kind === "js") new AsyncFunction(...(p.cell.inputs || []), p.cell.source);
+  } catch (e) { pass = false; err = e.message; }
+
+  applyPatches(nb, result.patches);
+  for (const p of result.patches) {
+    const cell = p.cell || getCell(nb, p.id);
+    if (cell?.kind === "query") lastQueryId = cell.id;
+    if (cell?.kind === "js" && cell.name.startsWith("chart_")) lastChartId = cell.id;
+  }
+
+  // Token cost of carrying this turn's data context forward: profile vs raw rows.
+  let profTok = 0, rawTok = 0;
+  for (const p of result.patches) {
+    const cell = p.cell || getCell(nb, p.id);
+    if (cell?.kind !== "query") continue;
+    const rows = (await looker.runInlineQuery(cell.query)).rows;
+    profTok += estimateTokens(profileToPrompt(profileRows(rows)));
+    rawTok += estimateTokens(JSON.stringify(rows));
+  }
+  totalContextTokens += profTok; rawTokens += rawTok;
+  if (pass) passCount++;
+
+  const tr = document.createElement("tr");
+  tr.innerHTML = `<td>${i + 1}</td><td><b>${c.prompt}</b><div class="mono" style="color:#5f6368">${result.answer.replace(/\*\*/g, "").slice(0, 90)}…</div></td>
+    <td class="mono">${c.expect}</td>
+    <td class="${pass ? "pass" : "fail"}">${pass ? "PASS" : "FAIL"}${err ? `<div class="mono">${err}</div>` : ""}</td>
+    <td class="mono">${ms}ms · ${result.patches.length} patches</td>
+    <td class="mono">${profTok ? `${profTok} tok (raw: ${rawTok})` : "—"}</td>`;
+  tbody.appendChild(tr);
+}
+
+const reduction = rawTokens ? Math.round((1 - totalContextTokens / rawTokens) * 100) : 0;
+document.querySelector("#totals").innerHTML =
+  `<b>${passCount}/${CASES.length} passed</b> · total planner time ${totalPlannerMs}ms ·
+   multi-turn context: <b>${totalContextTokens} tokens</b> via profiles vs ${rawTokens.toLocaleString()} raw
+   (<b>${reduction}% reduction</b>)`;
+</script>
+</body>
+</html>
