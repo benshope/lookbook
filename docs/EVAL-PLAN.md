@@ -34,6 +34,8 @@ climbed with evals, not argued in review. Every such decision is a named knob in
 | `planner.RESEARCH_BREAKDOWNS` | Research usefulness vs cell sprawl; consider choosing breakdowns dynamically by variance across dimensions (computable from SDK scans, still zero LLM). |
 | `planner.GLOSSARY_BOOST` | Whether org jargon should ever lose to a longer generic synonym. |
 | Verified-query match strictness (`matchVerifiedQuery`) | Recall of curated answers vs false-positive hijacking of unrelated questions. |
+| `affinity.*_WEIGHT`, `PROMPT_FIELDS_N` | Personalization lift (clarify-first-chip acceptance rate, default-field precision) vs prompt tokens and filter-bubble risk — a user who once ran a weird explore shouldn't be haunted by it. |
+| Prompt wording at `[AGENT-SITE:personalization]` / `[AGENT-SITE:clarify-policy]` | The *instructions* are knobs too (docs/AGENT-SITES.md): how boldly the model may lean on activity signals, and its ask-vs-guess tolerance. Climb wording changes exactly like numeric knobs — one edit, run evals, ratchet. |
 
 ## Context-size experiments ([candidate] flags in `tuning.context`)
 

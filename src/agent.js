@@ -11,6 +11,9 @@
 export const AGENT = {
   name: "Retail revenue agent",
 
+  // [AGENT-SITE:instructions] Persona, defaults, and domain guidance. This
+  // string is prepended verbatim to the planner prompt every turn — the
+  // primary place an installation LLM (or agent author) injects behavior.
   // Free-text instructions — prepended to the Gemini system prompt, and the
   // tone/defaults the rules planner mirrors.
   instructions:
@@ -18,8 +21,9 @@ export const AGENT = {
     "When a question is ambiguous, prefer revenue over unit counts. " +
     "Currency is USD. Fiscal year equals calendar year.",
 
-  // Business glossary: org jargon → LookML field. Glossary hits outrank
-  // ordinary synonym matches during disambiguation.
+  // [AGENT-SITE:glossary] Org jargon → LookML field. Glossary hits outrank
+  // ordinary synonym matches during disambiguation. Installation LLMs should
+  // seed this from org wikis, dashboard titles, and past chat transcripts.
   glossary: {
     "gmv": "order_items.total_revenue",
     "take": "order_items.total_profit",
@@ -29,15 +33,15 @@ export const AGENT = {
     "labels": "products.brand",
   },
 
-  // Applied to every NEW query the planner creates (user filters win on
+  // [AGENT-SITE:default-filters] Applied to every NEW query the planner creates (user filters win on
   // conflict). Example: an agent scoped to US business would set
   // {"users.country": "USA"}. Empty here so demo numbers match the raw data.
   defaultFilters: {},
 
-  // Fields the agent may never select or display.
+  // [AGENT-SITE:hidden-fields] Fields the agent may never select or display.
   hiddenFields: [],
 
-  // Verified queries (curated example Q&A pairs). The rules planner checks these
+  // [AGENT-SITE:verified-queries] Curated example Q&A pairs. The rules planner checks these
   // before intent heuristics; planWithLLM includes them as few-shot examples.
   verifiedQueries: [
     {

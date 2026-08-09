@@ -6,6 +6,7 @@ import { createNotebook, applyPatches, getCell, cellPrintableSource, serializeNo
 import { createEngine } from "./runtime.js";
 import { plan, planWithLLM } from "./compiler.js";
 import { configuredGeminiCaller } from "./gemini.js";
+import { MOCK_AFFINITY } from "./affinity.js";
 import {
   renderComposerPills, renderSuggestions, appendThinking, fillTurn, adoptChatCells,
   rebuildCanvas, rebuildHistory, showSwapMenu, markTurnUndone,
@@ -105,6 +106,7 @@ async function ask(question, opts = {}) {
       profiles: state.profiles,
       mode: state.mode,
       choices: opts.choices || {},   // clarification chips the user resolved
+      affinity: MOCK_AFFINITY,       // SDK activity signals (see affinity.js)
       lastQuery: state.lastQueryId ? getCell(state.nb, state.lastQueryId) : null,
       lastChart: state.lastChartId ? getCell(state.nb, state.lastChartId) : null,
     };

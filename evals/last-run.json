@@ -1,9 +1,9 @@
 {
   "score": {
-    "total": 16,
-    "passed": 16,
+    "total": 17,
+    "passed": 17,
     "accuracy": 1,
-    "at": "2026-08-08T22:36:10.300Z"
+    "at": "2026-08-08T23:58:39.913Z"
   },
   "rows": [
     {
@@ -170,6 +170,17 @@
         "filters": true
       },
       "answer": "Monthly **total revenue** for Search — **down 16%** over the last 6 months."
+    },
+    {
+      "q": "Revenue in georgia",
+      "mode": "chat",
+      "pass": true,
+      "checks": {
+        "kind": true,
+        "clarifyTerm": true,
+        "clarifyFirstField": true
+      },
+      "answer": "\"georgia\" matches more than one thing in this Explore — which did you mean?"
     }
   ]
 }

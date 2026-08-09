@@ -15,6 +15,7 @@ import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { plan } from "../src/compiler.js";
 import { createNotebook, applyPatches, getCell } from "../src/notebook.js";
 import { MockLookerClient } from "../src/looker.js";
+import { MOCK_AFFINITY } from "../src/affinity.js";
 
 const looker = new MockLookerClient({ latency: 0 });
 const golden = JSON.parse(readFileSync(new URL("./golden.json", import.meta.url), "utf8"));
@@ -52,6 +53,7 @@ for (const c of golden.cases) {
   if (c.fresh) { nb = createNotebook(); lastQueryId = lastChartId = null; }
   const result = await plan({
     question: c.q, nb, looker, mode: c.mode || "chat", choices: c.choices || {},
+    affinity: c.affinity ? MOCK_AFFINITY : null,
     lastQuery: lastQueryId ? getCell(nb, lastQueryId) : null,
     lastChart: lastChartId ? getCell(nb, lastChartId) : null,
   });
@@ -73,6 +75,7 @@ for (const c of golden.cases) {
   if (e.clarifyTerm) checks.clarifyTerm = result.clarify?.term === e.clarifyTerm;
   if (e.clarifyFields)
     checks.clarifyFields = e.clarifyFields.every(f => result.clarify?.options.some(o => o.field === f));
+  if (e.clarifyFirstField) checks.clarifyFirstField = result.clarify?.options[0]?.field === e.clarifyFirstField;
   if (e.minCells) checks.minCells = result.patches.filter(p => p.op === "add").length >= e.minCells;
 
   applyPatches(nb, result.patches);

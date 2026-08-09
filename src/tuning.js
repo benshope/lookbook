@@ -52,6 +52,19 @@ export const TUNING = {
     ],
   },
 
+  affinity: {
+    // Tie-break weights for activity signals (see affinity.js). The rules
+    // planner applies these ONLY where match scores are otherwise equal;
+    // the LLM receives the raw signals plus instructions instead. Climb
+    // against clarify-first-choice acceptance rate and field precision.
+    USER_RUN_WEIGHT: 3,          // per query-run by this user, last 30d
+    ORG_RUN_WEIGHT: 0.05,        // per query-run by anyone in the org
+    FAVORITE_DASHBOARD_WEIGHT: 0.5, // per view of a favorited dashboard using the field
+    CONVERSATION_WEIGHT: 5,      // flat, per recent conversation touching the field
+    // How many frequent/popular fields to expose in the LLM prompt block.
+    PROMPT_FIELDS_N: 4,
+  },
+
   context: {
     // [candidate] Include N sample values per dimension in the LLM catalog.
     // More grounding for value-heavy questions vs prompt growth. 0 = off.

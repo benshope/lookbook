@@ -27,6 +27,7 @@ import { fmt } from "./format.js";
 import { AGENT, agentToPrompt } from "./agent.js";
 import { groundQuestion, groundingToPrompt } from "./grounding.js";
 import { TUNING } from "./tuning.js";
+import { fieldWeight, affinityToPrompt } from "./affinity.js";
 
 // ---------------------------------------------------------------------------
 // Field + value resolution (scored, with alternates surfaced)
@@ -181,6 +182,10 @@ const slugOf = fname => fname.split(".")[1].replace(/[^a-z0-9]+/gi, "_");
 
 // ---------------------------------------------------------------------------
 // Research mode: one call, a whole investigation.
+// [AGENT-SITE:research-scope] In LLM mode, research breadth/emphasis is
+// instruction-driven (MODE=research paragraph in the system prompt); the
+// deterministic fan-out below (TUNING.planner.RESEARCH_BREAKDOWNS) is only
+// the rules-planner fallback shape.
 // ---------------------------------------------------------------------------
 async function planResearch({ nb, looker, filters, m, topic }) {
   const patches = [];
@@ -247,9 +252,16 @@ return kpiRow(
 // The planner
 // ---------------------------------------------------------------------------
 export async function plan(ctx) {
-  const { question, nb, looker, lastQuery, lastChart, mode = "chat", choices = {} } = ctx;
+  const { question, nb, looker, lastQuery, lastChart, mode = "chat", choices = {}, affinity = null } = ctx;
   const qn = normalize(question);
   const { dims: dimMatches, meas: measMatches } = resolveFields(qn);
+  // Affinity tie-break: where synonym scores are EQUAL, prefer the field this
+  // user (then the org) actually runs. Order guesses, never override words.
+  if (measMatches.length > 1 && measMatches[0].m.score === measMatches[1].m.score) {
+    const tied = measMatches.filter(x => x.m.score === measMatches[0].m.score);
+    tied.sort((a, b) => fieldWeight(affinity, b.f.name) - fieldWeight(affinity, a.f.name));
+    measMatches.splice(0, tied.length, ...tied);
+  }
   const dims = dimMatches.map(x => x.f);
   const meas = measMatches.map(x => x.f);
 
@@ -265,7 +277,9 @@ export async function plan(ctx) {
   // Genuine ambiguity → ask the user, don't guess. Resolving the chip the
   // user clicks re-plans with the binding — zero additional LLM calls.
   if (g.clarify && !hasWord("help")) {
-    const opts = g.clarify.options;
+    // Affinity orders the chips (most-likely first); it never auto-picks.
+    const opts = [...g.clarify.options]
+      .sort((a, b) => fieldWeight(affinity, b.field) - fieldWeight(affinity, a.field));
     return {
       answer: `"${g.clarify.term}" matches more than one thing in this Explore — which did you mean?`,
       clarify: { term: g.clarify.term, options: opts },
@@ -518,6 +532,15 @@ const filterSuffix = f => (Object.keys(f).length ? ` · ${Object.entries(f).map(
 // on any parse/validation failure, fall back to plan() above so the product
 // never hard-fails on a weak model response.
 // ---------------------------------------------------------------------------
+// [AGENT-SITE:system] Global planner behavior. The installation LLM may
+// append domain guidance here (tone, chart conventions, org defaults) —
+// everything agent-specific belongs in agent.js instead.
+// [AGENT-SITE:personalization] The PERSONALIZATION paragraph inside this
+// prompt governs how activity signals may bias field/explore guesses. It is
+// managed as INSTRUCTIONS on purpose — tune the wording (how bold the model
+// may be, when to cite signals), not code, and eval per docs/EVAL-PLAN.md.
+// [AGENT-SITE:clarify-policy] The AMBIGUOUS paragraph controls when the
+// model asks vs guesses; soften or tighten per org tolerance.
 export const COMPILER_SYSTEM_PROMPT = `You are a notebook compiler for chat-driven Looker analytics.
 Given a user question, an Explore field catalog, the current notebook outline, and compact
 statistical profiles of live query results, emit ONE JSON object:
@@ -528,6 +551,14 @@ statistical profiles of live query results, emit ONE JSON object:
    {"op":"add","cell":{"name":"md_x","kind":"md","source":"### heading..."}},
    {"op":"update","id":"<cellId>","cell":{...full replacement...}},
    {"op":"remove","id":"<cellId>"}]}
+PERSONALIZATION: an "Activity signals" section may list this user's recent explores
+and fields, org-popular fields, favorite dashboards, and recent conversations — all
+fetched via the SDK post-RLS. You are empowered to peek at these to bias guesses:
+prefer signal-supported fields for defaults and tie-breaks, order clarification
+options most-likely-first, and lean toward explores/fields the user actually runs.
+When a signal changes your choice, say so in the answer ("based on your recent
+activity"). Signals NEVER override the user's explicit words, and filter values
+still only come from Grounding.
 When the Grounding section reports AMBIGUOUS for a term, output
 {"answer":"<one-line question>","clarify":{"term":"...","options":[{"field":"...","value":"..."}]},"patches":[]}
 instead of guessing — the user resolves it with one click and no further model call.
@@ -551,13 +582,13 @@ Rules:
 - Output JSON only.`;
 
 export async function planWithLLM(ctx, callModel) {
-  const { question, nb, profiles, mode = "chat", choices = {} } = ctx;
+  const { question, nb, profiles, mode = "chat", choices = {}, affinity = null } = ctx;
   const catalog = EXPLORE.fields.filter(visible).map(f => `${f.name} (${f.type}${f.format ? ":" + f.format : ""}) aka ${f.synonyms.join("/")}`).join("\n");
   const outline = nb.cells.map(c =>
     `${c.id} ${c.name} [${c.kind}]${c.kind === "query" ? " " + JSON.stringify(c.query) : ""}${profiles?.get(c.id) ? `\n  profile: ${profiles.get(c.id)}` : ""}`).join("\n");
   // Same SDK-derived grounding evidence the rules planner uses (~40 tokens).
   const g = groundQuestion(normalize(question), { choices });
-  const user = `# Question\n${question}\n\n# MODE\n${mode}\n\n${agentToPrompt()}\n\n${groundingToPrompt(g)}\n\n# Explore catalog (model=${EXPLORE.model}, view=${EXPLORE.view}, joins auto-resolved)\n${catalog}\n\n# Notebook\n${outline || "(empty)"}`;
+  const user = `# Question\n${question}\n\n# MODE\n${mode}\n\n${agentToPrompt()}\n\n${affinityToPrompt(affinity)}\n\n${groundingToPrompt(g)}\n\n# Explore catalog (model=${EXPLORE.model}, view=${EXPLORE.view}, joins auto-resolved)\n${catalog}\n\n# Notebook\n${outline || "(empty)"}`;
   const raw = await callModel({ system: COMPILER_SYSTEM_PROMPT, user });
   try {
     const parsed = JSON.parse(raw.replace(/^```json?\s*|```\s*$/g, ""));
